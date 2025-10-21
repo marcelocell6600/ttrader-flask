@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 TTrader.com - Aplicação otimizada para mobile e desktop
+Com abas de Estudos e Downloads
 """
 
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, send_from_directory
 from flask_cors import CORS
 import os
 import random
@@ -13,6 +14,10 @@ import json
 
 app = Flask(__name__)
 CORS(app, origins="*")
+
+# Configurar pasta de arquivos estáticos
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'downloads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # API Key para brapi.dev
 BRAPI_API_KEY = "9GN5YztiAkoKu6f8ohNcz9"
@@ -65,7 +70,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .logo i { font-size: 1.8rem; color: #3498db; }
         .logo h1 { font-size: 1.5rem; font-weight: 700; }
         .logo .domain { font-size: 0.8rem; color: #3498db; font-weight: 400; }
-        .nav { display: flex; gap: 1rem; }
+        .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
         .nav-link { 
             color: rgba(255, 255, 255, 0.8); 
             text-decoration: none; 
@@ -268,162 +273,286 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             font-weight: 600; 
             font-size: 0.9rem;
         }
-        .sr-level.resistance { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
-        .sr-level.current { background: linear-gradient(135deg, #3498db, #2980b9); color: white; }
-        .sr-level.support { background: linear-gradient(135deg, #2ecc71, #27ae60); color: white; }
-        .recommendations-container { padding: 0.5rem 0; }
-        .recommendations-header { text-align: center; margin-bottom: 1.5rem; }
+        .sr-level.support { background: #ecf0f1; }
+        .sr-level.current { background: #e8f4f8; }
+        .sr-level.resistance { background: #ecf0f1; }
+        .sr-label { color: #7f8c8d; }
+        .sr-value { color: #2c3e50; font-weight: 700; }
+        .recommendation-card { 
+            background: white; 
+            border-left: 4px solid #3498db; 
+            border-radius: 10px; 
+            padding: 1rem; 
+            margin-bottom: 1rem; 
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); 
+            transition: all 0.3s ease;
+        }
+        .recommendation-card:hover { transform: translateX(5px); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.12); }
+        .recommendation-header { display: flex; gap: 1rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+        .recommendation-type { 
+            background: #3498db; 
+            color: white; 
+            padding: 0.4rem 0.8rem; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+        }
+        .recommendation-strategy { 
+            background: #ecf0f1; 
+            color: #2c3e50; 
+            padding: 0.4rem 0.8rem; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+        }
+        .recommendation-details { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 0.8rem; 
+            margin-bottom: 0.8rem; 
+        }
+        .detail-item { display: flex; flex-direction: column; }
+        .detail-label { font-size: 0.75rem; color: #7f8c8d; font-weight: 600; margin-bottom: 0.2rem; }
+        .detail-value { font-size: 0.9rem; color: #2c3e50; font-weight: 600; }
+        .risk-level { 
+            padding: 0.3rem 0.6rem; 
+            border-radius: 6px; 
+            font-weight: 600; 
+            font-size: 0.8rem; 
+        }
+        .risk-level.low { background: #2ecc71; color: white; }
+        .risk-level.medium { background: #f39c12; color: white; }
+        .risk-level.high { background: #e74c3c; color: white; }
+        .recommendation-description { 
+            font-size: 0.85rem; 
+            color: #555; 
+            line-height: 1.4; 
+            font-style: italic; 
+        }
+        .no-data { 
+            text-align: center; 
+            padding: 2rem; 
+            color: #7f8c8d; 
+        }
+        .no-data i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+        .loading-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            background: rgba(0, 0, 0, 0.7); 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            z-index: 1000; 
+        }
+        .loading-spinner { 
+            text-align: center; 
+            color: white; 
+        }
+        .loading-spinner i { 
+            font-size: 3rem; 
+            margin-bottom: 1rem; 
+        }
+        .recommendations-container { padding: 1rem 0; }
+        .recommendations-header { text-align: center; margin-bottom: 2rem; }
         .recommendations-header h2 { font-size: 1.8rem; color: #2c3e50; margin-bottom: 0.5rem; }
         .recommendations-subtitle { color: #7f8c8d; font-size: 1rem; }
-        .recommendations-content { display: grid; gap: 1rem; }
-        .recommendation-card { 
+        .recommendations-content { margin-top: 1rem; }
+
+        /* Estilos para a aba de Estudos */
+        .studies-container { padding: 1rem 0; }
+        .studies-header { text-align: center; margin-bottom: 2rem; }
+        .studies-header h2 { font-size: 1.8rem; color: #2c3e50; margin-bottom: 0.5rem; }
+        .studies-subtitle { color: #7f8c8d; font-size: 1rem; }
+        .studies-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 1.5rem; 
+            margin-top: 2rem; 
+        }
+        .study-card { 
+            background: white; 
+            border-radius: 15px; 
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); 
+            overflow: hidden; 
+            transition: all 0.3s ease; 
+            cursor: pointer; 
+        }
+        .study-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); }
+        .study-card-header { 
+            background: linear-gradient(135deg, #3498db, #2980b9); 
+            color: white; 
+            padding: 1.5rem; 
+            text-align: center; 
+        }
+        .study-card-header i { font-size: 2rem; margin-bottom: 0.5rem; }
+        .study-card-header h3 { font-size: 1.2rem; font-weight: 700; }
+        .study-card-body { padding: 1.5rem; }
+        .study-card-body p { color: #555; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1rem; }
+        .study-card-footer { 
+            display: flex; 
+            gap: 0.5rem; 
+            flex-wrap: wrap; 
+        }
+        .difficulty-badge { 
+            display: inline-block; 
+            padding: 0.3rem 0.8rem; 
+            border-radius: 20px; 
+            font-size: 0.75rem; 
+            font-weight: 600; 
+        }
+        .difficulty-easy { background: #2ecc71; color: white; }
+        .difficulty-medium { background: #f39c12; color: white; }
+        .difficulty-hard { background: #e74c3c; color: white; }
+        .start-btn { 
+            background: linear-gradient(135deg, #3498db, #2980b9); 
+            color: white; 
+            border: none; 
+            padding: 0.6rem 1.2rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.9rem; 
+            transition: all 0.3s ease; 
+            margin-left: auto; 
+        }
+        .start-btn:hover { background: linear-gradient(135deg, #2980b9, #1f5f8b); }
+
+        /* Estilos para exercícios */
+        .exercise-container { padding: 1rem 0; }
+        .exercise-header { 
+            background: white; 
+            padding: 1.5rem; 
+            border-radius: 15px; 
+            margin-bottom: 2rem; 
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); 
+        }
+        .exercise-header h2 { font-size: 1.5rem; color: #2c3e50; margin-bottom: 0.5rem; }
+        .exercise-header p { color: #7f8c8d; margin-bottom: 1rem; }
+        .exercise-back-btn { 
+            background: #95a5a6; 
+            color: white; 
+            border: none; 
+            padding: 0.6rem 1.2rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.9rem; 
+        }
+        .exercise-back-btn:hover { background: #7f8c8d; }
+        .exercise-list { display: grid; gap: 1rem; }
+        .exercise-item { 
+            background: white; 
+            border-left: 4px solid #3498db; 
+            border-radius: 10px; 
+            padding: 1.5rem; 
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); 
+        }
+        .exercise-item h3 { color: #2c3e50; margin-bottom: 0.5rem; }
+        .exercise-item p { color: #555; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1rem; }
+        .exercise-options { display: grid; gap: 0.8rem; margin-bottom: 1rem; }
+        .exercise-option { 
+            background: #f8f9fa; 
+            border: 2px solid #ecf0f1; 
+            border-radius: 8px; 
+            padding: 0.8rem; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+        }
+        .exercise-option:hover { border-color: #3498db; background: #e8f4f8; }
+        .exercise-option input[type="radio"] { margin-right: 0.5rem; }
+        .exercise-option label { cursor: pointer; flex: 1; }
+        .submit-exercise-btn { 
+            background: linear-gradient(135deg, #2ecc71, #27ae60); 
+            color: white; 
+            border: none; 
+            padding: 0.8rem 1.5rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.95rem; 
+            transition: all 0.3s ease; 
+        }
+        .submit-exercise-btn:hover { background: linear-gradient(135deg, #27ae60, #1e8449); }
+        .exercise-result { 
+            background: #f8f9fa; 
+            border-radius: 10px; 
+            padding: 1rem; 
+            margin-top: 1rem; 
+            border-left: 4px solid #3498db; 
+        }
+        .exercise-result.correct { border-left-color: #2ecc71; }
+        .exercise-result.incorrect { border-left-color: #e74c3c; }
+        .exercise-result h4 { margin-bottom: 0.5rem; }
+        .exercise-result.correct h4 { color: #2ecc71; }
+        .exercise-result.incorrect h4 { color: #e74c3c; }
+
+        /* Estilos para Downloads */
+        .downloads-container { padding: 1rem 0; }
+        .downloads-header { text-align: center; margin-bottom: 2rem; }
+        .downloads-header h2 { font-size: 1.8rem; color: #2c3e50; margin-bottom: 0.5rem; }
+        .downloads-subtitle { color: #7f8c8d; font-size: 1rem; }
+        .downloads-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 1.5rem; 
+            margin-top: 2rem; 
+        }
+        .download-card { 
             background: white; 
             border-radius: 15px; 
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); 
             overflow: hidden; 
             transition: all 0.3s ease; 
         }
-        .recommendation-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); }
-        .recommendation-header { 
-            padding: 1rem; 
-            background: linear-gradient(135deg, #3498db, #2980b9); 
+        .download-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12); }
+        .download-card-header { 
+            background: linear-gradient(135deg, #9b59b6, #8e44ad); 
             color: white; 
+            padding: 1.5rem; 
+            text-align: center; 
         }
-        .recommendation-type { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.3rem; }
-        .recommendation-strategy { font-size: 0.85rem; opacity: 0.9; }
-        .recommendation-body { padding: 1rem; }
-        .recommendation-details { display: grid; gap: 0.8rem; margin-bottom: 0.8rem; }
-        .detail-item { 
+        .download-card-header i { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .download-card-header h3 { font-size: 1.1rem; font-weight: 700; }
+        .download-card-body { padding: 1.5rem; }
+        .download-card-body p { color: #555; font-size: 0.95rem; line-height: 1.5; margin-bottom: 1rem; }
+        .download-info { 
             display: flex; 
             justify-content: space-between; 
-            align-items: flex-start; 
-            padding: 0.4rem 0; 
-            border-bottom: 1px solid #ecf0f1; 
-            gap: 0.5rem;
-        }
-        .detail-label { font-weight: 600; color: #7f8c8d; font-size: 0.85rem; flex-shrink: 0; }
-        .detail-value { color: #2c3e50; font-weight: 600; font-size: 0.85rem; text-align: right; }
-        .risk-level { 
-            padding: 0.2rem 0.6rem; 
-            border-radius: 10px; 
-            font-size: 0.75rem; 
-            font-weight: 600; 
-        }
-        .risk-low { background: #2ecc71; color: white; }
-        .risk-medium { background: #f39c12; color: white; }
-        .risk-high { background: #e74c3c; color: white; }
-        .recommendation-description { 
-            background: #f8f9fa; 
-            padding: 0.8rem; 
-            border-radius: 10px; 
-            font-size: 0.85rem; 
-            line-height: 1.4; 
-            color: #2c3e50; 
-        }
-        .no-data { text-align: center; padding: 2rem; color: #7f8c8d; }
-        .no-data i { font-size: 2.5rem; margin-bottom: 0.8rem; opacity: 0.5; }
-        .loading-overlay { 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0, 0, 0, 0.7); 
-            display: none; 
-            justify-content: center; 
             align-items: center; 
-            z-index: 9999; 
+            margin-bottom: 1rem; 
+            padding-bottom: 1rem; 
+            border-bottom: 1px solid #ecf0f1; 
         }
-        .loading-spinner { text-align: center; color: white; }
-        .loading-spinner i { font-size: 2.5rem; margin-bottom: 0.8rem; }
-        .loading-spinner p { font-size: 1.1rem; }
-        .error-message { 
-            background: #e74c3c; 
+        .download-size { font-size: 0.85rem; color: #7f8c8d; }
+        .download-btn { 
+            background: linear-gradient(135deg, #9b59b6, #8e44ad); 
             color: white; 
-            padding: 0.8rem; 
-            border-radius: 10px; 
-            margin: 0.8rem 0; 
+            border: none; 
+            padding: 0.8rem 1.5rem; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            font-size: 0.95rem; 
+            transition: all 0.3s ease; 
+            width: 100%; 
             text-align: center; 
-            font-size: 0.9rem;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 0.5rem; 
         }
-        .footer-brand { 
-            text-align: center; 
-            padding: 1.5rem; 
-            color: #7f8c8d; 
-            font-size: 0.85rem; 
-            border-top: 1px solid #ecf0f1; 
-            margin-top: 2rem; 
-        }
-        .footer-brand strong { color: #3498db; }
+        .download-btn:hover { background: linear-gradient(135deg, #8e44ad, #7d3c98); }
+        .download-btn i { font-size: 1rem; }
 
-        /* Mobile Optimizations */
-        @media (max-width: 768px) { 
-            .header { padding: 0.8rem; }
-            .header-content { flex-direction: column; gap: 0.8rem; align-items: stretch; }
-            .logo { justify-content: center; }
-            .logo h1 { font-size: 1.3rem; }
-            .nav { justify-content: center; gap: 0.5rem; }
-            .nav-link { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
-            .main { padding: 0.8rem; }
-            .search-container { padding: 1.5rem 0; }
-            .search-container h2 { font-size: 1.6rem; }
-            .subtitle { font-size: 0.9rem; }
-            .search-input-container { flex-direction: column; }
-            .search-btn { border-radius: 0 0 15px 15px; padding: 1rem; }
-            .stock-chips { grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
-            .stock-chip { padding: 0.6rem 0.3rem; font-size: 0.8rem; }
-            .analysis-header { flex-direction: column; align-items: stretch; gap: 0.8rem; }
-            .stock-info h2 { font-size: 1.3rem; }
-            .stock-details { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
-            .price { font-size: 1.2rem; }
-            .chart-container { height: 200px; padding: 0.3rem; }
-            .indicators-grid { grid-template-columns: 1fr; gap: 0.8rem; }
-            .indicator-value { font-size: 1.2rem; }
-            .signal-indicator { font-size: 0.9rem; padding: 0.7rem; }
-            .recommendations-header h2 { font-size: 1.5rem; }
-            .detail-item { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
-            .detail-value { text-align: left; }
-        }
-
-        @media (max-width: 480px) {
-            .header { padding: 0.6rem; }
-            .logo h1 { font-size: 1.2rem; }
-            .nav-link { padding: 0.3rem 0.5rem; font-size: 0.8rem; }
-            .main { padding: 0.6rem; }
-            .search-container h2 { font-size: 1.4rem; }
-            .stock-chips { grid-template-columns: repeat(3, 1fr); }
-            .stock-chip { padding: 0.5rem 0.2rem; font-size: 0.75rem; }
-            .chart-container { height: 180px; }
-            .card-header h3 { font-size: 1rem; }
-        }
-
-        /* Desktop Optimizations */
-        @media (min-width: 1024px) {
-            .analysis-grid { 
-                grid-template-columns: 2fr 1fr; 
-                grid-template-rows: auto auto; 
-            }
-            .chart-card { grid-row: span 2; }
-            .chart-container { height: 400px; padding: 1rem; }
-            .stock-chips { 
-                display: flex; 
-                flex-wrap: wrap; 
-                justify-content: center; 
-            }
-            .stock-chip { min-width: 80px; }
-        }
-
-        /* Touch Optimizations */
-        @media (hover: none) and (pointer: coarse) {
-            .stock-chip:hover { transform: none; box-shadow: none; }
-            .card:hover { transform: none; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); }
-            .recommendation-card:hover { transform: none; box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08); }
-        }
-
-        /* High DPI Displays */
-        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-            .logo i { font-size: 1.9rem; }
-            .search-icon { font-size: 1.1rem; }
+        @media (max-width: 768px) {
+            .header-content { flex-direction: column; gap: 1rem; }
+            .nav { justify-content: center; }
+            .studies-grid { grid-template-columns: 1fr; }
+            .downloads-grid { grid-template-columns: 1fr; }
+            .recommendation-details { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -435,13 +564,15 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     <i class="fas fa-chart-line"></i>
                     <div>
                         <h1>TTrader</h1>
-                        <div class="domain">.com</div>
+                        <span class="domain">ttrader.com.br</span>
                     </div>
                 </div>
                 <nav class="nav">
-                    <a href="#home" class="nav-link active" onclick="showSection('home')">Início</a>
+                    <a href="#home" class="nav-link active" onclick="showSection('home')">Home</a>
                     <a href="#analysis" class="nav-link" onclick="showSection('analysis')">Análise</a>
                     <a href="#recommendations" class="nav-link" onclick="showSection('recommendations')">Recomendações</a>
+                    <a href="#studies" class="nav-link" onclick="showSection('studies')">Estudos</a>
+                    <a href="#downloads" class="nav-link" onclick="showSection('downloads')">Downloads</a>
                 </nav>
             </div>
         </header>
@@ -449,52 +580,41 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         <main class="main">
             <section id="home" class="section active">
                 <div class="search-container">
-                    <h2>Análise Técnica de Ações</h2>
-                    <p class="subtitle">Digite o código da ação para obter análise detalhada e recomendações para opções</p>
+                    <h2>Análise de Ações Brasileiras</h2>
+                    <p class="subtitle">Busque por qualquer ação da bolsa brasileira e receba análise técnica em tempo real com indicadores e recomendações de estratégias</p>
                     
                     <div class="search-box">
                         <div class="search-input-container">
                             <i class="fas fa-search search-icon"></i>
-                            <input type="text" id="stockSearch" placeholder="Digite o código da ação (ex: PETR4, VALE3, ABEV3)" autocomplete="off">
-                            <button id="searchBtn" class="search-btn" onclick="performSearch()">
-                                <span class="btn-text">Analisar</span>
-                            </button>
+                            <input type="text" id="stockSearch" placeholder="Digite o código da ação (ex: PETR4, VALE3)">
+                            <button class="search-btn" onclick="performSearch()">Buscar</button>
                         </div>
                     </div>
 
                     <div class="popular-stocks">
                         <h3>Ações Populares</h3>
                         <div class="stock-chips">
-                            <button class="stock-chip" onclick="searchStock('PETR4')">PETR4</button>
-                            <button class="stock-chip" onclick="searchStock('VALE3')">VALE3</button>
-                            <button class="stock-chip" onclick="searchStock('ITUB4')">ITUB4</button>
-                            <button class="stock-chip" onclick="searchStock('BBDC4')">BBDC4</button>
-                            <button class="stock-chip" onclick="searchStock('ABEV3')">ABEV3</button>
-                            <button class="stock-chip" onclick="searchStock('WEGE3')">WEGE3</button>
-                            <button class="stock-chip" onclick="searchStock('MGLU3')">MGLU3</button>
-                            <button class="stock-chip" onclick="searchStock('B3SA3')">B3SA3</button>
+                            <div class="stock-chip" onclick="searchStock('PETR4')">PETR4</div>
+                            <div class="stock-chip" onclick="searchStock('VALE3')">VALE3</div>
+                            <div class="stock-chip" onclick="searchStock('ITUB4')">ITUB4</div>
+                            <div class="stock-chip" onclick="searchStock('BBDC4')">BBDC4</div>
+                            <div class="stock-chip" onclick="searchStock('ABEV3')">ABEV3</div>
+                            <div class="stock-chip" onclick="searchStock('WEGE3')">WEGE3</div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="footer-brand">
-                    <strong>TTrader.com</strong> - Sua plataforma de análise técnica para operações de opções
                 </div>
             </section>
 
             <section id="analysis" class="section">
                 <div class="analysis-container">
                     <div class="analysis-header">
-                        <button class="back-btn" onclick="showSection('home')">
-                            <i class="fas fa-arrow-left"></i>
-                            Voltar
-                        </button>
+                        <button class="back-btn" onclick="showSection('home')">← Voltar</button>
                         <div class="stock-info">
                             <h2 id="stockName">-</h2>
                             <div class="stock-details">
-                                <span id="stockSymbol" class="symbol">-</span>
-                                <span id="stockPrice" class="price">R$ -</span>
-                                <span id="stockChange" class="change">-</span>
+                                <span class="symbol" id="stockSymbol">-</span>
+                                <span class="price" id="stockPrice">R$ -</span>
+                                <span class="change" id="stockChange">-</span>
                             </div>
                         </div>
                     </div>
@@ -575,6 +695,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             <section id="recommendations" class="section">
                 <div class="recommendations-container">
                     <div class="recommendations-header">
+                        <button class="back-btn" onclick="showSection('home')" style="margin-bottom: 1rem;">← Voltar</button>
                         <h2>Recomendações para Opções</h2>
                         <p class="recommendations-subtitle">Estratégias baseadas na análise técnica atual</p>
                     </div>
@@ -584,6 +705,34 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             <i class="fas fa-chart-bar"></i>
                             <p>Realize uma análise primeiro para ver as recomendações</p>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="studies" class="section">
+                <div class="studies-container">
+                    <div class="studies-header">
+                        <button class="back-btn" onclick="showSection('home')" style="margin-bottom: 1rem;">← Voltar</button>
+                        <h2>Estudos e Exercícios</h2>
+                        <p class="studies-subtitle">Aprenda sobre análise técnica com nossos cursos interativos</p>
+                    </div>
+
+                    <div class="studies-grid" id="studiesGrid">
+                        <!-- Estudos serão carregados aqui via JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <section id="downloads" class="section">
+                <div class="downloads-container">
+                    <div class="downloads-header">
+                        <button class="back-btn" onclick="showSection('home')" style="margin-bottom: 1rem;">← Voltar</button>
+                        <h2>Downloads de Apostilas</h2>
+                        <p class="downloads-subtitle">Materiais de estudo para aprofundar seus conhecimentos</p>
+                    </div>
+
+                    <div class="downloads-grid" id="downloadsGrid">
+                        <!-- Downloads serão carregados aqui via JavaScript -->
                     </div>
                 </div>
             </section>
@@ -624,6 +773,16 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             // Scroll to top on mobile when changing sections
             if (isMobile()) {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            // Carregar estudos quando a seção for ativada
+            if (sectionId === 'studies') {
+                loadStudies();
+            }
+
+            // Carregar downloads quando a seção for ativada
+            if (sectionId === 'downloads') {
+                loadDownloads();
             }
         }
 
@@ -895,6 +1054,367 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
         }
 
+        // Função para carregar estudos
+        function loadStudies() {
+            const studies = [
+                {
+                    id: 1,
+                    title: 'Introdução a Candlesticks',
+                    description: 'Aprenda o básico sobre candlesticks e como interpretar os padrões de velas no gráfico.',
+                    difficulty: 'easy',
+                    icon: 'fas fa-chart-bar',
+                    exercises: 3
+                },
+                {
+                    id: 2,
+                    title: 'Padrões de Reversão',
+                    description: 'Estude os principais padrões de reversão como Hammer, Engulfing e Harami.',
+                    difficulty: 'medium',
+                    icon: 'fas fa-exchange-alt',
+                    exercises: 5
+                },
+                {
+                    id: 3,
+                    title: 'Indicadores Técnicos',
+                    description: 'Compreenda RSI, MACD e outras ferramentas de análise técnica.',
+                    difficulty: 'hard',
+                    icon: 'fas fa-chart-line',
+                    exercises: 7
+                }
+            ];
+
+            const grid = document.getElementById('studiesGrid');
+            grid.innerHTML = studies.map(study => `
+                <div class="study-card">
+                    <div class="study-card-header">
+                        <i class="${study.icon}"></i>
+                        <h3>${study.title}</h3>
+                    </div>
+                    <div class="study-card-body">
+                        <p>${study.description}</p>
+                        <div class="study-card-footer">
+                            <span class="difficulty-badge difficulty-${study.difficulty}">
+                                ${study.difficulty === 'easy' ? 'Fácil' : study.difficulty === 'medium' ? 'Médio' : 'Difícil'}
+                            </span>
+                            <span style="color: #7f8c8d; font-size: 0.9rem; margin-left: auto;">${study.exercises} exercícios</span>
+                            <button class="start-btn" onclick="startExercises(${study.id}, '${study.title}')">Iniciar</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Função para carregar downloads
+        function loadDownloads() {
+            fetch('/api/downloads')
+                .then(response => response.json())
+                .then(data => {
+                    const grid = document.getElementById('downloadsGrid');
+                    if (data.downloads && data.downloads.length > 0) {
+                        grid.innerHTML = data.downloads.map(file => `
+                            <div class="download-card">
+                                <div class="download-card-header">
+                                    <i class="fas fa-file-pdf"></i>
+                                    <h3>${file.name}</h3>
+                                </div>
+                                <div class="download-card-body">
+                                    <p>${file.description}</p>
+                                    <div class="download-info">
+                                        <span class="download-size">${file.size}</span>
+                                    </div>
+                                    <a href="/download/${file.filename}" class="download-btn">
+                                        <i class="fas fa-download"></i>
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        grid.innerHTML = '<div class="no-data"><i class="fas fa-inbox"></i><p>Nenhuma apostila disponível no momento.</p></div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar downloads:', error);
+                    document.getElementById('downloadsGrid').innerHTML = '<div class="no-data"><i class="fas fa-exclamation-triangle"></i><p>Erro ao carregar apostilas.</p></div>';
+                });
+        }
+
+        // Função para iniciar exercícios
+        function startExercises(studyId, studyTitle) {
+            const exercises = {
+                1: [
+                    {
+                        question: 'O que representa o corpo de um candlestick?',
+                        options: [
+                            'A diferença entre o preço máximo e mínimo',
+                            'A diferença entre o preço de abertura e fechamento',
+                            'O volume de negociação',
+                            'A tendência do mercado'
+                        ],
+                        correct: 1,
+                        explanation: 'O corpo do candlestick representa a diferença entre o preço de abertura e o preço de fechamento do período.'
+                    },
+                    {
+                        question: 'O que indica um candlestick verde?',
+                        options: [
+                            'O preço caiu durante o período',
+                            'O preço subiu durante o período',
+                            'Não há movimento de preço',
+                            'Volume alto de negociação'
+                        ],
+                        correct: 1,
+                        explanation: 'Um candlestick verde indica que o preço de fechamento foi maior que o preço de abertura, ou seja, o ativo subiu durante o período.'
+                    },
+                    {
+                        question: 'O que são as sombras (pavios) de um candlestick?',
+                        options: [
+                            'Indicadores técnicos',
+                            'As linhas finas que indicam os preços máximo e mínimo',
+                            'O volume de negociação',
+                            'A resistência do ativo'
+                        ],
+                        correct: 1,
+                        explanation: 'As sombras ou pavios são as linhas finas acima e abaixo do corpo que indicam os preços máximo e mínimo atingidos durante o período.'
+                    }
+                ],
+                2: [
+                    {
+                        question: 'O padrão Hammer é um sinal de:',
+                        options: [
+                            'Continuação de baixa',
+                            'Reversão de alta',
+                            'Indecisão do mercado',
+                            'Aumento de volume'
+                        ],
+                        correct: 1,
+                        explanation: 'O padrão Hammer é um candle de reversão de alta que aparece após uma tendência de baixa, indicando uma possível mudança de direção.'
+                    },
+                    {
+                        question: 'Qual é a característica principal do padrão Engulfing de Alta?',
+                        options: [
+                            'Um candle pequeno seguido de um grande',
+                            'Um candle de baixa "engolfa" um candle de alta',
+                            'Um candle de alta "engolfa" completamente um candle de baixa',
+                            'Dois candles com o mesmo tamanho'
+                        ],
+                        correct: 2,
+                        explanation: 'No Engulfing de Alta, um candle grande de alta engolfa completamente o corpo do candle anterior de baixa, indicando reversão de alta.'
+                    },
+                    {
+                        question: 'O que o padrão Doji indica?',
+                        options: [
+                            'Forte tendência de alta',
+                            'Forte tendência de baixa',
+                            'Indecisão do mercado',
+                            'Volume muito alto'
+                        ],
+                        correct: 2,
+                        explanation: 'O Doji indica indecisão do mercado, pois o preço de abertura e fechamento são iguais ou muito próximos, mostrando equilíbrio entre compradores e vendedores.'
+                    },
+                    {
+                        question: 'O padrão Shooting Star é um sinal de:',
+                        options: [
+                            'Reversão de alta',
+                            'Reversão de baixa',
+                            'Continuação de alta',
+                            'Consolidação'
+                        ],
+                        correct: 1,
+                        explanation: 'A Shooting Star é um padrão de reversão de baixa que aparece após uma tendência de alta, indicando possível mudança para baixa.'
+                    },
+                    {
+                        question: 'Qual é a diferença entre Hammer e Hanging Man?',
+                        options: [
+                            'Não há diferença, são o mesmo padrão',
+                            'Hammer aparece após alta, Hanging Man após baixa',
+                            'Hammer aparece após baixa, Hanging Man após alta',
+                            'Hammer é verde, Hanging Man é vermelho'
+                        ],
+                        correct: 2,
+                        explanation: 'Ambos têm a mesma forma visual, mas o contexto é diferente: Hammer aparece após uma tendência de baixa (reversão de alta), enquanto Hanging Man aparece após uma tendência de alta (reversão de baixa).'
+                    }
+                ],
+                3: [
+                    {
+                        question: 'O RSI (Relative Strength Index) varia entre:',
+                        options: [
+                            '0 e 50',
+                            '0 e 100',
+                            '-100 e 100',
+                            '0 e 200'
+                        ],
+                        correct: 1,
+                        explanation: 'O RSI varia entre 0 e 100. Valores abaixo de 30 indicam sobrevendido, acima de 70 indicam sobrecomprado.'
+                    },
+                    {
+                        question: 'O que indica um RSI acima de 70?',
+                        options: [
+                            'Ativo sobrevendido',
+                            'Ativo sobrecomprado',
+                            'Tendência de alta forte',
+                            'Volume muito alto'
+                        ],
+                        correct: 1,
+                        explanation: 'Um RSI acima de 70 indica que o ativo está sobrecomprado, sugerindo uma possível reversão de alta ou consolidação.'
+                    },
+                    {
+                        question: 'O MACD é formado por:',
+                        options: [
+                            'Uma média móvel',
+                            'Duas médias móveis exponenciais e uma linha de sinal',
+                            'Três médias móveis simples',
+                            'Apenas uma linha de sinal'
+                        ],
+                        correct: 1,
+                        explanation: 'O MACD é formado por duas médias móveis exponenciais (EMA 12 e EMA 26) e uma linha de sinal (EMA 9 do MACD).'
+                    },
+                    {
+                        question: 'Quando o MACD está acima da linha de sinal, isso indica:',
+                        options: [
+                            'Sinal de venda',
+                            'Sinal de compra',
+                            'Indecisão',
+                            'Reversão de alta'
+                        ],
+                        correct: 1,
+                        explanation: 'Quando o MACD está acima da linha de sinal, é considerado um sinal de compra, indicando momentum de alta.'
+                    },
+                    {
+                        question: 'A Média Móvel Simples (SMA) é calculada:',
+                        options: [
+                            'Pela soma dos preços dividida pelo número de períodos',
+                            'Pela exponencial dos preços',
+                            'Pela mediana dos preços',
+                            'Pela variância dos preços'
+                        ],
+                        correct: 0,
+                        explanation: 'A SMA é calculada somando os preços de fechamento de um período e dividindo pelo número de períodos considerados.'
+                    },
+                    {
+                        question: 'Quando a SMA 20 está acima da SMA 50, isso geralmente indica:',
+                        options: [
+                            'Tendência de baixa',
+                            'Tendência de alta',
+                            'Consolidação',
+                            'Reversão iminente'
+                        ],
+                        correct: 1,
+                        explanation: 'Quando a SMA 20 está acima da SMA 50, é considerado um sinal de tendência de alta, pois a média curta está acima da média longa.'
+                    },
+                    {
+                        question: 'Qual é a principal vantagem do MACD sobre outras médias móveis?',
+                        options: [
+                            'É mais simples de calcular',
+                            'Fornece sinais mais rápidos através do cruzamento de linhas',
+                            'Nunca gera sinais falsos',
+                            'Funciona em todos os mercados'
+                        ],
+                        correct: 1,
+                        explanation: 'O MACD fornece sinais mais rápidos através do cruzamento entre o MACD e a linha de sinal, permitindo identificar mudanças de momentum mais cedo.'
+                    }
+                ]
+            };
+
+            const studyExercises = exercises[studyId] || [];
+            let currentExerciseIndex = 0;
+            let score = 0;
+
+            function showExercise() {
+                if (currentExerciseIndex >= studyExercises.length) {
+                    showResults();
+                    return;
+                }
+
+                const exercise = studyExercises[currentExerciseIndex];
+                const html = `
+                    <div class="exercise-container">
+                        <div class="exercise-header">
+                            <button class="exercise-back-btn" onclick="showSection('studies')">← Voltar</button>
+                            <h2>${studyTitle}</h2>
+                            <p>Exercício ${currentExerciseIndex + 1} de ${studyExercises.length}</p>
+                        </div>
+
+                        <div class="exercise-list">
+                            <div class="exercise-item">
+                                <h3>${exercise.question}</h3>
+                                <div class="exercise-options">
+                                    ${exercise.options.map((option, index) => `
+                                        <div class="exercise-option">
+                                            <input type="radio" id="option${index}" name="answer" value="${index}">
+                                            <label for="option${index}">${option}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <button class="submit-exercise-btn" onclick="submitExercise(${currentExerciseIndex})">Próximo</button>
+                                <div id="exerciseResult"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.querySelector('main').innerHTML = html;
+            }
+
+            window.submitExercise = function(index) {
+                const selected = document.querySelector('input[name="answer"]:checked');
+                if (!selected) {
+                    alert('Por favor, selecione uma resposta');
+                    return;
+                }
+
+                const exercise = studyExercises[index];
+                const userAnswer = parseInt(selected.value);
+                const isCorrect = userAnswer === exercise.correct;
+
+                if (isCorrect) {
+                    score++;
+                }
+
+                const resultHtml = `
+                    <div class="exercise-result ${isCorrect ? 'correct' : 'incorrect'}">
+                        <h4>${isCorrect ? '✓ Correto!' : '✗ Incorreto'}</h4>
+                        <p><strong>Explicação:</strong> ${exercise.explanation}</p>
+                    </div>
+                `;
+
+                document.getElementById('exerciseResult').innerHTML = resultHtml;
+                document.querySelector('.submit-exercise-btn').textContent = 'Próximo Exercício';
+                document.querySelector('.submit-exercise-btn').onclick = function() {
+                    currentExerciseIndex++;
+                    showExercise();
+                };
+            };
+
+            function showResults() {
+                const percentage = Math.round((score / studyExercises.length) * 100);
+                const html = `
+                    <div class="exercise-container">
+                        <div class="exercise-header">
+                            <button class="exercise-back-btn" onclick="showSection('studies')">← Voltar</button>
+                            <h2>${studyTitle}</h2>
+                            <p>Resultado Final</p>
+                        </div>
+
+                        <div class="exercise-list">
+                            <div class="exercise-item" style="text-align: center; padding: 3rem 1.5rem;">
+                                <h3 style="font-size: 2rem; margin-bottom: 1rem;">Parabéns!</h3>
+                                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Você acertou <strong>${score} de ${studyExercises.length}</strong> exercícios</p>
+                                <div style="font-size: 3rem; font-weight: 700; color: #3498db; margin-bottom: 1rem;">${percentage}%</div>
+                                <p style="color: #7f8c8d; margin-bottom: 2rem;">
+                                    ${percentage >= 80 ? 'Excelente desempenho! Você domina bem este tópico.' : percentage >= 60 ? 'Bom trabalho! Continue estudando para melhorar.' : 'Continue praticando para melhorar seus conhecimentos.'}
+                                </p>
+                                <button class="submit-exercise-btn" onclick="showSection('studies')" style="width: 200px; margin: 0 auto;">Voltar aos Estudos</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.querySelector('main').innerHTML = html;
+            }
+
+            showExercise();
+        }
+
         // Event listeners
         document.getElementById('stockSearch').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -927,6 +1447,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             }
         }, { passive: false });
     </script>
+<footer style="text-align: center; padding: 1rem; color: #7f8c8d; font-size: 0.8rem;">
+    &copy; 2025 TTrader.com.br - Desenvolvido por Marcelo Ribeiro
+</footer>
 </body>
 </html>'''
 
@@ -1357,14 +1880,57 @@ def get_chart_data(symbol):
     except Exception as e:
         return jsonify({'error': f'Erro ao buscar dados históricos: {str(e)}'}), 500
 
+@app.route('/api/downloads')
+def list_downloads():
+    """Lista todos os arquivos disponíveis para download"""
+    try:
+        downloads = []
+        upload_folder = app.config['UPLOAD_FOLDER']
+        
+        if os.path.exists(upload_folder):
+            for filename in os.listdir(upload_folder):
+                filepath = os.path.join(upload_folder, filename)
+                if os.path.isfile(filepath):
+                    size_bytes = os.path.getsize(filepath)
+                    # Converter tamanho para formato legível
+                    if size_bytes < 1024:
+                        size_str = f"{size_bytes} B"
+                    elif size_bytes < 1024 * 1024:
+                        size_str = f"{size_bytes / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                    
+                    # Gerar nome amigável
+                    name = filename.replace('_', ' ').replace('.pdf', '').title()
+                    
+                    downloads.append({
+                        'filename': filename,
+                        'name': name,
+                        'size': size_str,
+                        'description': f'Apostila em PDF - {size_str}'
+                    })
+        
+        return jsonify({'downloads': downloads})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    """Faz download de um arquivo"""
+    try:
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    except Exception as e:
+        return jsonify({'error': 'Arquivo não encontrado'}), 404
+
 @app.route('/health')
 def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'version': '3.1.0',
+        'version': '4.0.0',
         'platform': 'TTrader.com',
-        'mobile_optimized': True
+        'mobile_optimized': True,
+        'features': ['analysis', 'recommendations', 'studies', 'downloads']
     })
 
 if __name__ == '__main__':
