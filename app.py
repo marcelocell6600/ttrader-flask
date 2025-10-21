@@ -1447,7 +1447,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             }
         }, { passive: false });
     </script>
-<footer style="text-align: center; padding: 1rem; color: #7f8c8d; font-size: 0.8rem;">
+<footer style="text-align: center; padding: 1rem; color: #FFFFFF; font-size: 0.8rem;">
     &copy; 2025 TTrader.com.br - Desenvolvido por Marcelo Ribeiro
 </footer>
 </body>
