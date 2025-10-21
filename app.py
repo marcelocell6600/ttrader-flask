@@ -600,6 +600,10 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             <div class="stock-chip" onclick="searchStock('BBDC4')">BBDC4</div>
                             <div class="stock-chip" onclick="searchStock('ABEV3')">ABEV3</div>
                             <div class="stock-chip" onclick="searchStock('WEGE3')">WEGE3</div>
+                            <div class="stock-chip" onclick="searchStock('PRIO3')">PRIO3</div>
+                            <div class="stock-chip" onclick="searchStock('B3SA3')">B3SA3</div>
+                            <div class="stock-chip" onclick="searchStock('BOVA11')">BOVA11</div>
+                            <div class="stock-chip" onclick="searchStock('MGLU3')">MGLU3</div>
                         </div>
                     </div>
                 </div>
